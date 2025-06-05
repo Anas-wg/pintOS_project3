@@ -52,8 +52,7 @@ struct page
 
 	/* Hash 자료구조 활용 위한 멤버변수 추가 */
 	struct hash_elem hash_elem; /* Hash table element. */
-	void *addr;									/* Virtual address. */
-
+	bool writable;
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
 	union
@@ -97,7 +96,7 @@ struct page_operations
  * All designs up to you for this. */
 struct supplemental_page_table
 {
-	struct hash pages;
+	struct hash spt_pages;
 };
 
 #include "threads/thread.h"

@@ -1,14 +1,16 @@
 #ifndef THREADS_THREAD_H
 #define THREADS_THREAD_H
-#define USERPROG
 #define VM
+#define USERPROG
 
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+
 #include "threads/synch.h"
 #ifdef VM
+struct supplemental_page_table;
 #include "vm/vm.h"
 #endif
 
