@@ -176,9 +176,16 @@ vm_get_frame(void)
 }
 
 /* Growing the stack. */
-static void
+static bool
 vm_stack_growth(void *addr UNUSED)
 {
+	void *va = pg_round_down(addr);
+	if (vm_alloc_page_with_initializer(VM_ANON | VM_MARKER_0, va, true, NULL, NULL))
+	{
+		thread_current()->rsp = va;
+		return vm_claim_page(va);
+	}
+	return false;
 }
 
 /* Handle the fault on write_protected page */
@@ -193,25 +200,49 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
 {
 	struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
 	struct page *page = NULL;
-	if (addr == NULL)
+	void *MAX_STACK = (USER_STACK - (1 << 20));
+	if (addr == NULL || is_kernel_vaddr(addr))
 		return false;
 
-	if (is_kernel_vaddr(addr))
-		return false;
-
-	if (not_present) // 접근한 메모리의 physical page가 존재하지 않은 경우
+	if (not_present)
 	{
-		/* TODO: Validate the fault */
-		page = spt_find_page(spt, addr);
+		/** Project 3-Stack Growth*/
 		if (page == NULL)
+		{
+			// 페이지가 spt에 존재하지 않는다면, 즉 아직 해당 가상 주소에 대한 매핑이 없다면,
+
+			void *rsp = user ? pg_round_down(f->rsp) : thread_current()->rsp;
+			// 만약 유저 모드라면 유저 스택 포인터(rsp)를 현재 인터럽트 프레임에서 가져오고,
+			// 그렇지 않으면 (커널 모드일 경우) 현재 스레드에 저장해둔 스택 포인터를 사용한다.
+			// 단, 유저 스택은 페이지 단위로 할당되기 때문에 rsp를 페이지 하단 기준으로 정렬한다.
+
+			if (MAX_STACK <= rsp - 8 && rsp - 8 == addr && addr <= USER_STACK)
+			{
+				// push 명령어 등으로 인해 rsp보다 낮은 주소에 쓰기를 시도한 경우
+				// 스택 프레임 푸시 직전 주소 접근인 경우 (push 명령어 직후에 fault 나는 상황
+
+				if (!vm_stack_growth(addr))
+					return false;
+			}
+			else if (MAX_STACK <= rsp && rsp <= addr && addr <= USER_STACK)
+			{
+				//  rsp보다 높은 주소에 접근했지만 여전히 스택 영역인 경우
+				// 일반적인 스택 사용 (예: 지역 변수 할당 등)으로 인한 접근의 경우
+
+				if (!vm_stack_growth(addr))
+					return false;
+			}
+
+			page = spt_find_page(spt, addr);
+		}
+
+		if (page == NULL || (write && !page->writable))
 			return false;
-		if (write == 1 && page->writable == 0) // write 불가능한 페이지에 write 요청한 경우
-			return false;
+
 		return vm_do_claim_page(page);
 	}
 	return false;
 }
-
 /* Free the page.
  * DO NOT MODIFY THIS FUNCTION. */
 void vm_dealloc_page(struct page *page)
@@ -272,7 +303,7 @@ bool page_less(const struct hash_elem *a_,
 void supplemental_page_table_init(struct supplemental_page_table *spt UNUSED)
 {
 	// 인자로 받은 spt의 pages 해시 테이블을 초기화
-	hash_init(spt, page_hash, page_less, NULL);
+	hash_init(&spt->spt_pages, page_hash, page_less, NULL);
 }
 
 /* Copy supplemental page table from src to dst */
@@ -296,7 +327,7 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 		{
 			vm_initializer *init = src_page->uninit.init; // uninit에 맞는 initializer 할당
 			void *aux = src_page->uninit.aux;
-			vm_alloc_page_with_initializer(VM_ANON, upage, writable, init, aux);
+			(VM_ANON, upage, writable, init, aux);
 			continue;
 		}
 
