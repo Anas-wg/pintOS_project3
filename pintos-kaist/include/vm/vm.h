@@ -53,6 +53,8 @@ struct page
 	/* Hash 자료구조 활용 위한 멤버변수 추가 */
 	struct hash_elem hash_elem; /* Hash table element. */
 	bool writable;
+
+	int mapped_page_count;
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
 	union

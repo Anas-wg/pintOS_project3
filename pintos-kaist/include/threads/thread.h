@@ -118,7 +118,8 @@ struct thread
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
 	struct supplemental_page_table spt;
-	void *rsp; // stack growth 용도
+	void *rsp;						 // stack growth 용도
+	struct list mmap_list; // mmap 리스트
 #endif
 
 	/* Owned by thread.c. */
